@@ -22,13 +22,19 @@ func NewGoparser(fileList []*object.File, language *Language) *GoParser {
 
 func (g *GoParser) Parse(fileList []*object.File) error {
 	for _, file := range g.fileList {
+
 		content, err := file.Contents()
 		if err != nil {
 			return err
 		}
+		if file.Name == "languages/go_parser.go" {
+			fmt.Println("File:", file.Name)
+			fmt.Println("content:", content)
+		}
 		if err := g.scan(content); err != nil {
 			return err
 		}
+
 	}
 	return nil
 }
@@ -55,7 +61,7 @@ func (g *GoParser) scan(content string) error {
 				// This line contains a function annotated with "// +count".
 				functionCount++
 				inFunction = true
-			} else if strings.Contains(line, "type ") && strings.Contains(line, " struct") {
+			} else if strings.Contains(line, "type ") {
 				// This line contains a struct annotated with "// +count".
 				structCount++
 				inStruct = true
