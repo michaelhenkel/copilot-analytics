@@ -12,9 +12,9 @@ type Config struct {
 
 // bla
 type Repo struct {
-	Url      string
-	Token    string
-	LocalDir *string
+	Url   string
+	Token string
+	Local *string
 }
 
 type Commits struct {

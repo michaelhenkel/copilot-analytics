@@ -106,15 +106,10 @@ func Execute() {
 
 func get(conf *languages.Config) (*result, error) {
 
-	token, err := readTokenFromFile(conf.Repo.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	var repo *git.Repository
 
-	if conf.Repo.LocalDir != nil {
-		fs := osfs.New(*conf.Repo.LocalDir)
+	if conf.Repo.Local != nil {
+		fs := osfs.New(*conf.Repo.Local)
 		if _, err := fs.Stat(git.GitDirName); err == nil {
 			fs, err = fs.Chroot(git.GitDirName)
 			if err != nil {
@@ -128,6 +123,10 @@ func get(conf *languages.Config) (*result, error) {
 		}
 		repo = r
 	} else {
+		token, err := readTokenFromFile(conf.Repo.Token)
+		if err != nil {
+			return nil, err
+		}
 		r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
 			Auth: &http.BasicAuth{
 				Username: "a",
@@ -197,7 +196,6 @@ func get(conf *languages.Config) (*result, error) {
 		}
 		fileList(result, conf, fileMap)
 	} else {
-
 		ref, err := repo.Head()
 		if err != nil {
 			return nil, err
