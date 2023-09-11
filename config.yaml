@@ -1,6 +1,7 @@
 repo:
-  url: https://ssd-git.juniper.net/contrail/cerebrum
-  token: /Users/mhenkel/.gittoken
+  url: https://github.com/michaelhenkel/copilot-analytics
+  token: /Users/mhenkel/.githubtoken
+  localDir: /Users/mhenkel/go/src/github.com/michaelhenkel/copilot-analytics
 languages:
 - name: go
   extensions:

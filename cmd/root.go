@@ -25,9 +25,11 @@ type Config struct {
 	Commits   Commits
 }
 
+// bla
 type Repo struct {
-	Url   string
-	Token string
+	Url      string
+	Token    string
+	LocalDir *string
 }
 
 type Commits struct {
