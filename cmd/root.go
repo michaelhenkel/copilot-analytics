@@ -8,10 +8,13 @@ import (
 	"path"
 	"strings"
 
+	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -19,39 +22,15 @@ import (
 	"copilot-analytics/languages"
 )
 
-type Config struct {
-	Repo      Repo
-	Languages []languages.Language
-	Commits   Commits
-}
-
-// bla
-type Repo struct {
-	Url      string
-	Token    string
-	LocalDir *string
-}
-
-type Commits struct {
-	From *string
-	To   *string
-}
-
 type result struct {
-	filesMap map[languages.LanguageName][]string
+	filesMap map[languages.LanguageName][]*object.File
 }
 
-func (r *result) eval() error {
-	for language, fileList := range r.filesMap {
-		languageInterface := languages.NewParser(language, fileList)
+func (r *result) eval(conf *languages.Config) error {
+	for languageName, fileList := range r.filesMap {
+		languageInterface := languages.NewParser(languageName, conf, fileList)
 		if err := languageInterface.Parse(fileList); err != nil {
 			return err
-		}
-	}
-	if go_ext, ok := r.filesMap[languages.Go]; ok {
-		fmt.Println("Go files:")
-		for _, file := range go_ext {
-			fmt.Println(file)
 		}
 	}
 	return nil
@@ -59,7 +38,7 @@ func (r *result) eval() error {
 
 func newResult() *result {
 	return &result{
-		filesMap: make(map[languages.LanguageName][]string),
+		filesMap: make(map[languages.LanguageName][]*object.File),
 	}
 }
 
@@ -74,31 +53,36 @@ var (
 		Short: "Get information about your Copilot usage",
 		Long:  `Get information about your Copilot usage`,
 		Run: func(cmd *cobra.Command, args []string) {
-			result, err := get()
+			conf, err := readConfig()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
-			if err := result.eval(); err != nil {
+			result, err := get(conf)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			if err := result.eval(conf); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 		},
 	}
-	config string
+	configFile string
 )
 
 func initConfig() {
 
 }
 
-func readConfig() (*Config, error) {
-	data, err := os.ReadFile(config)
+func readConfig() (*languages.Config, error) {
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 		return nil, err
 	}
-	conf := &Config{}
+	conf := &languages.Config{}
 	if err := yaml.Unmarshal(data, conf); err != nil {
 		return nil, err
 	}
@@ -108,7 +92,7 @@ func readConfig() (*Config, error) {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	getCmd.PersistentFlags().StringVar(&config, "config", "", "path to config file")
+	getCmd.PersistentFlags().StringVar(&configFile, "config", "", "path to config file")
 	getCmd.MarkFlagRequired("config")
 	rootCmd.AddCommand(getCmd)
 }
@@ -120,29 +104,45 @@ func Execute() {
 	}
 }
 
-func get() (*result, error) {
+func get(conf *languages.Config) (*result, error) {
 
-	conf, err := readConfig()
-	if err != nil {
-		return nil, err
-	}
 	token, err := readTokenFromFile(conf.Repo.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println(conf)
-	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
-		Auth: &http.BasicAuth{
-			Username: "a",
-			Password: token,
-		},
-		URL:      conf.Repo.Url,
-		Progress: os.Stdout,
-	})
-	if err != nil {
-		return nil, err
+	var repo *git.Repository
+
+	if conf.Repo.LocalDir != nil {
+		fs := osfs.New(*conf.Repo.LocalDir)
+		if _, err := fs.Stat(git.GitDirName); err == nil {
+			fs, err = fs.Chroot(git.GitDirName)
+			if err != nil {
+				return nil, err
+			}
+		}
+		s := filesystem.NewStorageWithOptions(fs, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+		r, err := git.Open(s, fs)
+		if err != nil {
+			return nil, err
+		}
+		repo = r
+	} else {
+		r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
+			Auth: &http.BasicAuth{
+				Username: "a",
+				Password: token,
+			},
+			URL:      conf.Repo.Url,
+			Progress: os.Stdout,
+		})
+		if err != nil {
+			return nil, err
+		}
+		repo = r
 	}
+
+	fmt.Println(conf)
 
 	result := newResult()
 
@@ -151,7 +151,7 @@ func get() (*result, error) {
 
 	if conf.Commits.From != nil && conf.Commits.To != nil {
 		fromRef = plumbing.NewHash(*conf.Commits.From)
-		fromCIter, err := r.Log(&git.LogOptions{
+		fromCIter, err := repo.Log(&git.LogOptions{
 			From: fromRef,
 		})
 		if err != nil {
@@ -159,13 +159,13 @@ func get() (*result, error) {
 		}
 
 		toRef = plumbing.NewHash(*conf.Commits.To)
-		toCIter, err := r.Log(&git.LogOptions{
+		toCIter, err := repo.Log(&git.LogOptions{
 			From: toRef,
 		})
 		if err != nil {
 			return nil, err
 		}
-		var fileMap = make(map[string]bool)
+		var fileMap = make(map[string]*object.File)
 		if err := fromCIter.ForEach(func(fromCommit *object.Commit) error {
 			if err := toCIter.ForEach(func(toCommit *object.Commit) error {
 				patch, err := fromCommit.Patch(toCommit)
@@ -176,7 +176,12 @@ func get() (*result, error) {
 				scanner := bufio.NewScanner(strings.NewReader(patchString))
 				for scanner.Scan() {
 					fileString := strings.TrimSpace(strings.Split(scanner.Text(), " | ")[0])
-					fileMap[fileString] = true
+					file, err := fromCommit.File(fileString)
+					if err != nil {
+						return err
+					}
+					fileMap[fileString] = file
+
 				}
 
 				if err := scanner.Err(); err != nil {
@@ -193,25 +198,25 @@ func get() (*result, error) {
 		fileList(result, conf, fileMap)
 	} else {
 
-		ref, err := r.Head()
+		ref, err := repo.Head()
 		if err != nil {
 			return nil, err
 		}
 
-		cIter, err := r.Log(&git.LogOptions{
+		cIter, err := repo.Log(&git.LogOptions{
 			From: ref.Hash(),
 		})
 		if err != nil {
 			return nil, err
 		}
-		var fileMap = make(map[string]bool)
+		var fileMap = make(map[string]*object.File)
 		if err := cIter.ForEach(func(commit *object.Commit) error {
 			files, err := commit.Files()
 			if err != nil {
 				return err
 			}
 			files.ForEach(func(file *object.File) error {
-				fileMap[file.Name] = true
+				fileMap[file.Name] = file
 				return nil
 			})
 			return nil
@@ -223,26 +228,27 @@ func get() (*result, error) {
 	return result, nil
 }
 
-func fileList(res *result, conf *Config, fileMap map[string]bool) {
-	for file := range fileMap {
+// +copilot
+func fileList(res *result, conf *languages.Config, fileMap map[string]*object.File) {
+	for file, fileObject := range fileMap {
 		extension := path.Ext(file)
 		for _, language := range conf.Languages {
 			if len(language.Extensions) > 0 {
 				for _, ext := range language.Extensions {
 					if extension == ext {
 						if val, ok := res.filesMap[language.Name]; ok {
-							res.filesMap[language.Name] = append(val, file)
+							res.filesMap[language.Name] = append(val, fileObject)
 						} else {
-							res.filesMap[language.Name] = []string{file}
+							res.filesMap[language.Name] = []*object.File{fileObject}
 						}
 
 					}
 				}
 			} else {
 				if val, ok := res.filesMap[language.Name]; ok {
-					res.filesMap[language.Name] = append(val, file)
+					res.filesMap[language.Name] = append(val, fileObject)
 				} else {
-					res.filesMap[language.Name] = []string{file}
+					res.filesMap[language.Name] = []*object.File{fileObject}
 				}
 			}
 		}

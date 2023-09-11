@@ -1,5 +1,27 @@
 package languages
 
+import (
+	"github.com/go-git/go-git/v5/plumbing/object"
+)
+
+type Config struct {
+	Repo      Repo
+	Languages []Language
+	Commits   Commits
+}
+
+// bla
+type Repo struct {
+	Url      string
+	Token    string
+	LocalDir *string
+}
+
+type Commits struct {
+	From *string
+	To   *string
+}
+
 type Language struct {
 	Name       LanguageName
 	Extensions []string
@@ -8,15 +30,20 @@ type Language struct {
 
 type LanguageName string
 
-func NewParser(language LanguageName, fileList []string) LanguageInterface {
-	switch language {
+func NewParser(languageName LanguageName, conf *Config, fileList []*object.File) LanguageInterface {
+	switch languageName {
 	case Go:
-		return NewGoparser(fileList)
+		for _, lang := range conf.Languages {
+			if lang.Name == languageName {
+				return NewGoparser(fileList, &lang)
+			}
+		}
 	case Yaml:
 		return NewYamlParser(fileList)
 	default:
 		return nil
 	}
+	return nil
 }
 
 const (
@@ -26,5 +53,5 @@ const (
 
 type LanguageInterface interface {
 	// GetExtensions returns the extensions for the language
-	Parse(fileList []string) error
+	Parse(fileList []*object.File) error
 }
