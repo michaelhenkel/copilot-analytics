@@ -208,19 +208,18 @@ func get(conf *languages.Config) (*result, error) {
 			return nil, err
 		}
 		var fileMap = make(map[string]*object.File)
-		if err := cIter.ForEach(func(commit *object.Commit) error {
-			files, err := commit.Files()
-			if err != nil {
-				return err
-			}
-			files.ForEach(func(file *object.File) error {
-				fileMap[file.Name] = file
-				return nil
-			})
-			return nil
-		}); err != nil {
+		lastCommit, err := cIter.Next()
+		if err != nil {
 			return nil, err
 		}
+		files, err := lastCommit.Files()
+		if err != nil {
+			return nil, err
+		}
+		files.ForEach(func(file *object.File) error {
+			fileMap[file.Name] = file
+			return nil
+		})
 		fileList(result, conf, fileMap)
 	}
 	return result, nil

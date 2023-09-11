@@ -3,6 +3,7 @@ package languages
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -10,7 +11,7 @@ import (
 
 type GoParser struct {
 	fileList   []*object.File
-	annotation string
+	annotation Annotation
 }
 
 func NewGoparser(fileList []*object.File, language *Language) *GoParser {
@@ -28,73 +29,59 @@ func (g *GoParser) Parse(fileList []*object.File) error {
 		if err != nil {
 			return err
 		}
-		if file.Name == "languages/go_parser.go" {
-			fmt.Println("File:", file.Name)
-			fmt.Println("content:", content)
-		}
-		if err := g.scan(content); err != nil {
+
+		lineCount, err := g.scan(content)
+		if err != nil {
 			return err
 		}
+		fmt.Printf("File: %s, Line count: %d\n", file.Name, lineCount)
 
 	}
 	return nil
 }
 
-func (g *GoParser) scan(content string) error {
-	// Specify the path to your Go source code file.
+// -copilot
 
-	// Initialize the counters.
-	functionCount := 0
-	structCount := 0
-	currentCount := 0
-	inFunction := false
-	inStruct := false
+func (g *GoParser) scan(content string) (int, error) {
 
 	// Create a scanner to read the file line by line.
 	scanner := bufio.NewScanner(strings.NewReader(content))
 
-	// Iterate through each line in the file.
+	// Initialize variables to keep track of the start and end annotations
+	startAnnotationFound := false
+	endAnnotationFound := false
+
+	// Initialize a variable to keep track of the line count
+	lineCount := 0
+
+	// Loop through each line in the file
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if strings.Contains(line, g.annotation) {
-			if strings.Contains(line, "func ") {
-				// This line contains a function annotated with "// +count".
-				functionCount++
-				inFunction = true
-			} else if strings.Contains(line, "type ") {
-				// This line contains a struct annotated with "// +count".
-				structCount++
-				inStruct = true
-			}
+		// Check if the line contains the start annotation
+		if !startAnnotationFound && line == g.annotation.Start {
+			startAnnotationFound = true
+			continue
 		}
 
-		// Count lines for the current function or struct.
-		if inFunction || inStruct {
-			currentCount++
+		// Check if the line contains the end annotation
+		if startAnnotationFound && line == g.annotation.End {
+			endAnnotationFound = true
+			break
 		}
 
-		// Check for the end of a function or struct.
-		if strings.TrimSpace(line) == "}" {
-			if inFunction {
-				fmt.Printf("Lines in function %d: %d\n", functionCount, currentCount)
-				inFunction = false
-			} else if inStruct {
-				fmt.Printf("Lines in struct %d: %d\n", structCount, currentCount)
-				inStruct = false
-			}
-			currentCount = 0
+		// If we're between the start and end annotations, increment the line count
+		if startAnnotationFound && !endAnnotationFound {
+			lineCount++
 		}
 	}
 
-	// Check for any scanner errors.
+	// Check for errors during scanning
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
-		return err
+		log.Fatalf("error: %v", err)
+		return 0, err
 	}
 
-	// Print the counts.
-	fmt.Printf("Number of functions annotated with '// +count': %d\n", functionCount)
-	fmt.Printf("Number of structs annotated with '// +count': %d\n", structCount)
-	return nil
+	// Return the line count
+	return lineCount, nil
 }

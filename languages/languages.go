@@ -25,7 +25,12 @@ type Commits struct {
 type Language struct {
 	Name       LanguageName
 	Extensions []string
-	Annotation string
+	Annotation Annotation
+}
+
+type Annotation struct {
+	Start string
+	End   string
 }
 
 type LanguageName string
