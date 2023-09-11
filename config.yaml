@@ -1,0 +1,17 @@
+repo:
+  url: https://ssd-git.juniper.net/contrail/cerebrum
+  token: /Users/mhenkel/.gittoken
+languages:
+- name: go
+  extensions:
+  - ".go"
+  annotation: "// +copilot"
+- name: yaml
+  extensions:
+  - ".yaml"
+  annotation: "# +copilot"
+commits:
+  from: 1262b5d417f77a24bad9a80192acb3b2e3e01c60
+  to: 135d1cba007cabca3a3ce9b7e8b40f8c32bec5d9
+
+  
