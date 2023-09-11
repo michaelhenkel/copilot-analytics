@@ -20,6 +20,7 @@ func NewGoparser(fileList []*object.File, language *Language) *GoParser {
 	}
 }
 
+// +copilot
 func (g *GoParser) Parse(fileList []*object.File) error {
 	for _, file := range g.fileList {
 

@@ -176,7 +176,7 @@ func get(conf *languages.Config) (*result, error) {
 				scanner := bufio.NewScanner(strings.NewReader(patchString))
 				for scanner.Scan() {
 					fileString := strings.TrimSpace(strings.Split(scanner.Text(), " | ")[0])
-					file, err := fromCommit.File(fileString)
+					file, err := toCommit.File(fileString)
 					if err != nil {
 						return err
 					}
@@ -228,7 +228,6 @@ func get(conf *languages.Config) (*result, error) {
 	return result, nil
 }
 
-// +copilot
 func fileList(res *result, conf *languages.Config, fileMap map[string]*object.File) {
 	for file, fileObject := range fileMap {
 		extension := path.Ext(file)
