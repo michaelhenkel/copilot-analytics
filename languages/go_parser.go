@@ -58,14 +58,17 @@ func (g *GoParser) scan(content string) (int, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		if line == "" {
+			continue
+		}
 		// Check if the line contains the start annotation
-		if !startAnnotationFound && line == g.annotation.Start {
+		if !startAnnotationFound && strings.Contains(line, g.annotation.Start) {
 			startAnnotationFound = true
 			continue
 		}
 
 		// Check if the line contains the end annotation
-		if startAnnotationFound && line == g.annotation.End {
+		if startAnnotationFound && strings.Contains(line, g.annotation.End) {
 			endAnnotationFound = true
 			break
 		}

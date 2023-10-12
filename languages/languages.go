@@ -7,19 +7,12 @@ import (
 type Config struct {
 	Repo      Repo
 	Languages []Language
-	Commits   Commits
 }
 
-// bla
 type Repo struct {
 	Url   string
 	Token string
 	Local *string
-}
-
-type Commits struct {
-	From *string
-	To   *string
 }
 
 type Language struct {

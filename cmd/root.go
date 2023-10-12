@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -132,8 +130,7 @@ func get(conf *languages.Config) (*result, error) {
 				Username: "a",
 				Password: token,
 			},
-			URL:      conf.Repo.Url,
-			Progress: os.Stdout,
+			URL: conf.Repo.Url,
 		})
 		if err != nil {
 			return nil, err
@@ -141,87 +138,33 @@ func get(conf *languages.Config) (*result, error) {
 		repo = r
 	}
 
-	fmt.Println(conf)
-
 	result := newResult()
-
-	var fromRef plumbing.Hash
-	var toRef plumbing.Hash
-
-	if conf.Commits.From != nil && conf.Commits.To != nil {
-		fromRef = plumbing.NewHash(*conf.Commits.From)
-		fromCIter, err := repo.Log(&git.LogOptions{
-			From: fromRef,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		toRef = plumbing.NewHash(*conf.Commits.To)
-		toCIter, err := repo.Log(&git.LogOptions{
-			From: toRef,
-		})
-		if err != nil {
-			return nil, err
-		}
-		var fileMap = make(map[string]*object.File)
-		if err := fromCIter.ForEach(func(fromCommit *object.Commit) error {
-			if err := toCIter.ForEach(func(toCommit *object.Commit) error {
-				patch, err := fromCommit.Patch(toCommit)
-				if err != nil {
-					return err
-				}
-				patchString := patch.Stats().String()
-				scanner := bufio.NewScanner(strings.NewReader(patchString))
-				for scanner.Scan() {
-					fileString := strings.TrimSpace(strings.Split(scanner.Text(), " | ")[0])
-					file, err := toCommit.File(fileString)
-					if err != nil {
-						return err
-					}
-					fileMap[fileString] = file
-
-				}
-
-				if err := scanner.Err(); err != nil {
-					return err
-				}
-				return nil
-			}); err != nil {
-				return nil
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-		fileList(result, conf, fileMap)
-	} else {
-		ref, err := repo.Head()
-		if err != nil {
-			return nil, err
-		}
-
-		cIter, err := repo.Log(&git.LogOptions{
-			From: ref.Hash(),
-		})
-		if err != nil {
-			return nil, err
-		}
-		var fileMap = make(map[string]*object.File)
-		lastCommit, err := cIter.Next()
-		if err != nil {
-			return nil, err
-		}
-		files, err := lastCommit.Files()
-		if err != nil {
-			return nil, err
-		}
-		files.ForEach(func(file *object.File) error {
-			fileMap[file.Name] = file
-			return nil
-		})
-		fileList(result, conf, fileMap)
+	ref, err := repo.Head()
+	if err != nil {
+		return nil, err
 	}
+
+	cIter, err := repo.Log(&git.LogOptions{
+		From: ref.Hash(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	var fileMap = make(map[string]*object.File)
+	lastCommit, err := cIter.Next()
+	if err != nil {
+		return nil, err
+	}
+	files, err := lastCommit.Files()
+	if err != nil {
+		return nil, err
+	}
+	files.ForEach(func(file *object.File) error {
+		fileMap[file.Name] = file
+		return nil
+	})
+	fileList(result, conf, fileMap)
+
 	return result, nil
 }
 
